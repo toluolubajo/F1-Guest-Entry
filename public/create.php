@@ -1,19 +1,14 @@
 <?php
 
-require('FellowshipOne.php');
-
-$settings = array(
-    'key' => '594',
-    'secret' => 'd0e12539-8c67-4c3b-89e6-7c24e6725d64',
-    'username' => 'Development',
-    'password' => '4U2Change!',
-    'baseUrl' => 'https://staging-www.fellowshipone.com',
-    'debug' => true,
-);
-
+require('../libs/FellowshipOne.php');
+$config = parse_ini_file('../libs/config.ini');
 //instantiate the f1 class
 
-$f1 = new FellowshipOne($settings);
+if ($config) {
+    die("Wrong configuration file or settings");
+}
+
+$f1 = new FellowshipOne($config);
 if (($r = $f1->login()) === false) {
     die("Failed to login");
 }
