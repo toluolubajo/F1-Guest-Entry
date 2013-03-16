@@ -3,6 +3,11 @@ To change this template, choose Tools | Templates
 and open the template in the editor.
 -->
 <!DOCTYPE html>
+<?php define('APP_ROOT', getcwd()); ?>
+<?php define('DS', DIRECTORY_SEPARATOR); ?>
+<?php set_include_path("..".DS.'lib'); ?>
+<?php include_once '../lib/Autoloader.php'; ?>
+<?php Autoloader::register(); ?>
 <html>
     <head>
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -32,7 +37,7 @@ and open the template in the editor.
                                 <option value="<?php echo $i ?>" ><?php echo $i ?></option>
                             <?php } ?>
                         </select>
-                        
+
                         <button style="float:right;" class="button white" type="submit">Next</button>
                     </form> 
                 </div>

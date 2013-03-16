@@ -23,34 +23,12 @@ class FellowshipOne
     private $consumer;
     private $logger;
     private $token;
-    public $paths = array(
-        'portalUser' => array(
-            'accessToken' => '/v1/PortalUser/AccessToken',
-        ),
-        'giving' => array(
-            'accountTypes' => '/giving/v1/accounts/accounttypes',
-            'contributionTypes' => '/giving/v1/contributiontypes',
-            'fundTypes' => '/giving/v1/funds/fundtypes',
-            'funds' => '/giving/v1/funds',
-            'newContributionReceipt' => '/giving/v1/contributionreceipts/new',
-            'createContributionReceipt' => '/giving/v1/contributionreceipts',
-        ),
-        'people' => array(
-            'newHousehold' => '/v1/Households/new',
-            'createHousehold' => '/v1/Households',
-            'householdMemberTypes' => '/v1/People/HouseholdMemberTypes',
-            'householdSearch' => '/v1/Households/Search',
-            'peopleSearch' => '/v1/People/Search',
-            'newPerson' => '/v1/People/new',
-            'createPerson' => '/v1/People',
-            'newAddress' => '/v1/People/{personID}/Addresses/new',
-            'createAddress' => '/v1/People/{personID}/Addresses',
-            'newCommunication' => '/v1/People/{personID}/Communications/new',
-            'createCommunication' => '/v1/People/{personID}/Communications',
-            'listStatus' => '/v1/People/Statuses',
-            'createImage' => '/v1/People/{personID}/images'
-        ),
-    );
+    protected $_paths;
+    protected $_groupModel;
+    protected $_groups;
+    protected $_groupMembers;
+    protected $_groupTypes;
+    protected $_loggedIn = false;
 
     /**
      * contruct fellowship one class with settings array that contains
@@ -61,6 +39,81 @@ class FellowshipOne
         $this->settings = (object) $settings;
         $this->consumer = new OAuthConsumer($this->settings->key, $this->settings->secret, NULL);
         $this->logger = new Logger();
+        $this->_groupModel = new FellowshipOne_Groups($settings);
+        $this->_setPaths();
+    }
+
+    protected function _initGroup()
+    {
+        $this->login();
+        if (!$this->_groupMembers) {
+            $groupTypesData = $this->fetchGetJson($this->_groupModel->getGroupTypesUrl());
+            $groups = array();
+            $groupTypes = array();
+            if ($groupTypesData) {
+                foreach ($groupTypesData['groupTypes']['groupType'] as $groupTypeData) {
+                    $groupTypes[$groupTypeData['@id']] = $this->fetchGetJson(str_replace('{id}', $groupTypeData['@id'], $this->_groupModel->getGroupsUrl()));
+                }
+                if (isset($groupTypes)) {
+                    $this->_groupTypes = $groupTypes;
+                }
+                if (isset($groupTypes) && is_array($groupTypes)) {
+                    foreach ($groupTypes as $key => $groupData) {
+                        foreach ($groupData['groups']['group'] as $group) {
+                            $groups[$group['@id']] = $group;
+                            $groups['@id']['groupTypeId'] = $key;
+                            $this->_groups = $groups;
+                        }
+                        if (isset($groups)) {
+                            foreach ($groups as $id => $data) {
+                                $groups[$id] = $this->fetchGetJson(str_replace('{group_id}', $id, $this->_groupModel->getGroupMembersUrl()));
+                            }
+                        }
+                        if (isset($groups)) {
+                            $this->_groupMembers = $groups;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    protected function _setPaths()
+    {
+        $this->_paths = array(
+            'portalUser' => array(
+                'accessToken' => '/v1/PortalUser/AccessToken',
+            ),
+            'giving' => array(
+                'accountTypes' => '/giving/v1/accounts/accounttypes',
+                'contributionTypes' => '/giving/v1/contributiontypes',
+                'fundTypes' => '/giving/v1/funds/fundtypes',
+                'funds' => '/giving/v1/funds',
+                'newContributionReceipt' => '/giving/v1/contributionreceipts/new',
+                'createContributionReceipt' => '/giving/v1/contributionreceipts',
+            ),
+            'people' => array(
+                'newHousehold' => '/v1/Households/new',
+                'createHousehold' => '/v1/Households',
+                'householdMemberTypes' => '/v1/People/HouseholdMemberTypes',
+                'householdSearch' => '/v1/Households/Search',
+                'peopleSearch' => '/v1/People/Search',
+                'newPerson' => '/v1/People/new',
+                'createPerson' => '/v1/People',
+                'newAddress' => '/v1/People/{personID}/Addresses/new',
+                'createAddress' => '/v1/People/{personID}/Addresses',
+                'newCommunication' => '/v1/People/{personID}/Communications/new',
+                'createCommunication' => '/v1/People/{personID}/Communications',
+                'listStatus' => '/v1/People/Statuses',
+                'createImage' => '/v1/People/{personID}/images'
+        ));
+    }
+
+    public function addPaths($path)
+    {
+        if (!empty($path) && is_array($path)) {
+            $this->_paths[] = $path;
+        }
     }
 
     /**
@@ -95,7 +148,7 @@ class FellowshipOne
      */
     public function getContributionReceiptModel()
     {
-        $url = $this->settings->base_url . $this->paths['giving']['newContributionReceipt'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['giving']['newContributionReceipt'] . ".json";
         return $this->fetchGetJson($url);
     }
 
@@ -105,7 +158,7 @@ class FellowshipOne
      */
     public function createContributionReceipt($model)
     {
-        $url = $this->settings->base_url . $this->paths['giving']['createContributionReceipt'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['giving']['createContributionReceipt'] . ".json";
         $model = json_encode($model);
         return $this->fetchPostJson($url, $model);
     }
@@ -116,7 +169,7 @@ class FellowshipOne
      */
     public function getAddressModel($personId)
     {
-        $url = str_replace('{personID}', $personId, $this->settings->base_url . $this->paths['people']['newAddress'] . ".json");
+        $url = str_replace('{personID}', $personId, $this->settings->base_url . $this->_paths['people']['newAddress'] . ".json");
         var_dump($url);
         return $this->fetchGetJson($url);
     }
@@ -128,7 +181,7 @@ class FellowshipOne
      */
     public function createAddress($model, $personId)
     {
-        $url = str_replace('{personID}', $personId, $this->settings->base_url . $this->paths['people']['createAddress'] . ".json");
+        $url = str_replace('{personID}', $personId, $this->settings->base_url . $this->_paths['people']['createAddress'] . ".json");
         $model = json_encode($model);
         return $this->fetchPostJson($url, $model);
     }
@@ -139,7 +192,7 @@ class FellowshipOne
      */
     public function getCommunicationModel($personId)
     {
-        $url = str_replace('{personID}', $personId, $this->settings->base_url . $this->paths['people']['newCommunication'] . ".json");
+        $url = str_replace('{personID}', $personId, $this->settings->base_url . $this->_paths['people']['newCommunication'] . ".json");
         var_dump($url);
         return $this->fetchGetJson($url);
     }
@@ -151,7 +204,7 @@ class FellowshipOne
      */
     public function createCommunication($model, $personId)
     {
-        $url = str_replace('{personID}', $personId, $this->settings->base_url . $this->paths['people']['createCommunication'] . ".json");
+        $url = str_replace('{personID}', $personId, $this->settings->base_url . $this->_paths['people']['createCommunication'] . ".json");
         $model = json_encode($model);
         return $this->fetchPostJson($url, $model);
     }
@@ -163,7 +216,7 @@ class FellowshipOne
      */
     public function createImage($data, $personId)
     {
-        $url = str_replace('{personID}', $personId, $this->settings->base_url . $this->paths['people']['createImage']);
+        $url = str_replace('{personID}', $personId, $this->settings->base_url . $this->_paths['people']['createImage']);
         return $this->fetchPostJson($url, $data);
     }
 
@@ -172,7 +225,7 @@ class FellowshipOne
      */
     public function getPersonModel()
     {
-        $url = $this->settings->base_url . $this->paths['people']['newPerson'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['people']['newPerson'] . ".json";
         return $this->fetchGetJson($url);
     }
 
@@ -182,7 +235,7 @@ class FellowshipOne
      */
     public function createPerson($model)
     {
-        $url = $this->settings->base_url . $this->paths['people']['createPerson'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['people']['createPerson'] . ".json";
         $model = json_encode($model);
         return $this->fetchPostJson($url, $model);
     }
@@ -192,7 +245,7 @@ class FellowshipOne
      */
     public function getHouseholdModel()
     {
-        $url = $this->settings->base_url . $this->paths['people']['newHousehold'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['people']['newHousehold'] . ".json";
         return $this->fetchGetJson($url);
     }
 
@@ -202,7 +255,7 @@ class FellowshipOne
      */
     public function createHousehold($model)
     {
-        $url = $this->settings->base_url . $this->paths['people']['createHousehold'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['people']['createHousehold'] . ".json";
         $model = json_encode($model);
         return $this->fetchPostJson($url, $model);
     }
@@ -213,7 +266,7 @@ class FellowshipOne
      */
     public function searchPeople($attributes)
     {
-        $url = $this->settings->base_url . $this->paths['people']['peopleSearch'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['people']['peopleSearch'] . ".json";
         $url .= "?" . http_build_query($attributes);
         return $this->fetchGetJson($url);
     }
@@ -224,7 +277,7 @@ class FellowshipOne
      */
     public function getHouseholdsByName($name)
     {
-        $url = $this->settings->base_url . $this->paths['people']['householdSearch'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['people']['householdSearch'] . ".json";
         $url .= "?searchFor=" . urlencode($name);
         return $this->fetchGetJson($url);
     }
@@ -234,7 +287,7 @@ class FellowshipOne
      */
     public function getPeopleHouseholdMemberTypes()
     {
-        $url = $this->settings->base_url . $this->paths['people']['householdMemberTypes'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['people']['householdMemberTypes'] . ".json";
         return $this->fetchGetJson($url);
     }
 
@@ -243,7 +296,7 @@ class FellowshipOne
      */
     public function getPeopleStatuses()
     {
-        $url = $this->settings->base_url . $this->paths['people']['listStatus'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['people']['listStatus'] . ".json";
         return $this->fetchGetJson($url);
     }
 
@@ -252,7 +305,7 @@ class FellowshipOne
      */
     public function getGivingFunds()
     {
-        $url = $this->settings->base_url . $this->paths['giving']['funds'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['giving']['funds'] . ".json";
         return $this->fetchGetJson($url);
     }
 
@@ -261,7 +314,7 @@ class FellowshipOne
      */
     public function getGivingFundTypes()
     {
-        $url = $this->settings->base_url . $this->paths['giving']['fundTypes'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['giving']['fundTypes'] . ".json";
         return $this->fetchGetJson($url);
     }
 
@@ -270,7 +323,7 @@ class FellowshipOne
      */
     public function getGivingContributionTypes()
     {
-        $url = $this->settings->base_url . $this->paths['giving']['contributionTypes'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['giving']['contributionTypes'] . ".json";
         return $this->fetchGetJson($url);
     }
 
@@ -279,7 +332,7 @@ class FellowshipOne
      */
     public function getGivingAccountTypes()
     {
-        $url = $this->settings->base_url . $this->paths['giving']['accountTypes'] . ".json";
+        $url = $this->settings->base_url . $this->_paths['giving']['accountTypes'] . ".json";
         return $this->fetchGetJson($url);
     }
 
@@ -314,13 +367,53 @@ class FellowshipOne
      */
     public function login()
     {
-        $this->r = $this->requestAccessToken();
-        if (!$this->r->oauth_token || !$this->r->oauth_token_secret) {
-            return false;
+        if (!$this->_loggedIn) {
+            $this->r = $this->requestAccessToken();
+            if (!$this->r->oauth_token || !$this->r->oauth_token_secret) {
+                return false;
+            }
+            $this->token->key = $this->r->oauth_token;
+            $this->token->secret = $this->r->oauth_token_secret;
+            $this->_loggedIn = true;
         }
-        $this->token->key = $this->r->oauth_token;
-        $this->token->secret = $this->r->oauth_token_secret;
         return true;
+    }
+
+    public function getGroupsData()
+    {
+        $this->_initGroup();
+        return $this->_groups;
+    }
+
+    public function getGroupsTypesData()
+    {
+        $this->_initGroup();
+        return $this->_groupTypes;
+    }
+
+    public function getGroupsMemberData()
+    {
+        $this->_initGroup();
+        return $this->_groupMembers;
+    }
+
+    public function getGroupMembersJson()
+    {
+        $data = $this->getGroupsMemberData();
+        $newData = array();
+        if ($data) {
+            foreach ($data as $key => $value) {
+                if (!empty($value)) {
+                    foreach ($value['members']['member'] as $member) {
+                        $newData[$key][] = $member['person']['@id'];
+                        $newData[$key][] = $member['person']['name'];
+                    }
+                }
+            }
+        }
+        if (isset($newData)) {
+            return json_encode($newData);
+        }
     }
 
     /**
@@ -331,7 +424,7 @@ class FellowshipOne
     {
 
         $message = urlencode(base64_encode("{$this->settings->username} {$this->settings->password}"));
-        $url = $this->settings->base_url . $this->paths['portalUser']['accessToken'];
+        $url = $this->settings->base_url . $this->_paths['portalUser']['accessToken'];
         $params = array("ec" => $message);
         $request = OAuthRequest::from_consumer_and_token($this->consumer, NULL, 'POST', $url, $params);
         $request->sign_request(new OAuthSignatureMethod_HMAC_SHA1(), $this->consumer, NULL);

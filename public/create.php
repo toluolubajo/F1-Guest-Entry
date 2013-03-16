@@ -1,10 +1,10 @@
 <?php
 
-require('../libs/FellowshipOne.php');
-$config = parse_ini_file('../libs/config.ini');
+require('../lib/FellowshipOne.php');
+$config = parse_ini_file('../lib/config.ini');
 //instantiate the f1 class
 
-if ($config) {
+if (!$config) {
     die("Wrong configuration file or settings");
 }
 
