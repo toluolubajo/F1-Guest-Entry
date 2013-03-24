@@ -14,7 +14,7 @@ require_once('Logger.php');
 /**
  * Additional methods added for guest entry app
  * @author Tracy Mazelin tracy.mazelin@activenetwork.com
- * @tutorial http://developer.fellowshipone.com/blog/address
+ * @author Bolaji Olubajo toluolubajo@gmail.com
  */
 class FellowshipOne
 {
@@ -24,61 +24,30 @@ class FellowshipOne
     private $logger;
     private $token;
     protected $_paths;
-    protected $_groupModel;
-    protected $_groups;
-    protected $_groupMembers;
-    protected $_groupTypes;
     protected $_loggedIn = false;
 
     /**
      * contruct fellowship one class with settings array that contains
      * @param unknown_type $settings
      */
-    public function __construct($settings)
+    public function __construct($oauthConsumer)
     {
-        $this->settings = (object) $settings;
-        $this->consumer = new OAuthConsumer($this->settings->key, $this->settings->secret, NULL);
-        $this->logger = new Logger();
-        $this->_groupModel = new FellowshipOne_Groups($settings);
-        $this->_setPaths();
+        $this->consumer = $oauthConsumer;
+        $this->settings = $oauthConsumer->getSettings();
+        $this->_setDefaultPaths();
     }
 
-    protected function _initGroup()
+    public function getOAuthConsumer()
     {
-        $this->login();
-        if (!$this->_groupMembers) {
-            $groupTypesData = $this->fetchGetJson($this->_groupModel->getGroupTypesUrl());
-            $groups = array();
-            $groupTypes = array();
-            if ($groupTypesData) {
-                foreach ($groupTypesData['groupTypes']['groupType'] as $groupTypeData) {
-                    $groupTypes[$groupTypeData['@id']] = $this->fetchGetJson(str_replace('{id}', $groupTypeData['@id'], $this->_groupModel->getGroupsUrl()));
-                }
-                if (isset($groupTypes)) {
-                    $this->_groupTypes = $groupTypes;
-                }
-                if (isset($groupTypes) && is_array($groupTypes)) {
-                    foreach ($groupTypes as $key => $groupData) {
-                        foreach ($groupData['groups']['group'] as $group) {
-                            $groups[$group['@id']] = $group;
-                            $groups['@id']['groupTypeId'] = $key;
-                            $this->_groups = $groups;
-                        }
-                        if (isset($groups)) {
-                            foreach ($groups as $id => $data) {
-                                $groups[$id] = $this->fetchGetJson(str_replace('{group_id}', $id, $this->_groupModel->getGroupMembersUrl()));
-                            }
-                        }
-                        if (isset($groups)) {
-                            $this->_groupMembers = $groups;
-                        }
-                    }
-                }
-            }
-        }
+        return $this->consumer;
     }
 
-    protected function _setPaths()
+    public function addLogger($logger)
+    {
+        $this->logger = $logger;
+    }
+
+    protected function _setDefaultPaths()
     {
         $this->_paths = array(
             'portalUser' => array(
@@ -109,11 +78,16 @@ class FellowshipOne
         ));
     }
 
-    public function addPaths($path)
+    public function addPaths($entityName = '0', $path)
     {
         if (!empty($path) && is_array($path)) {
-            $this->_paths[] = $path;
+            $this->_paths[$entityName] = $path;
         }
+    }
+
+    public function getPaths()
+    {
+        return $this->_paths;
     }
 
     /**
@@ -134,6 +108,9 @@ class FellowshipOne
     public function debug($object)
     {
         if (!$this->settings->debug) {
+            return;
+        }
+        if (!$this->logger) {
             return;
         }
         if (is_object($object)) {
@@ -377,43 +354,6 @@ class FellowshipOne
             $this->_loggedIn = true;
         }
         return true;
-    }
-
-    public function getGroupsData()
-    {
-        $this->_initGroup();
-        return $this->_groups;
-    }
-
-    public function getGroupsTypesData()
-    {
-        $this->_initGroup();
-        return $this->_groupTypes;
-    }
-
-    public function getGroupsMemberData()
-    {
-        $this->_initGroup();
-        return $this->_groupMembers;
-    }
-
-    public function getGroupMembersJson()
-    {
-        $data = $this->getGroupsMemberData();
-        $newData = array();
-        if ($data) {
-            foreach ($data as $key => $value) {
-                if (!empty($value)) {
-                    foreach ($value['members']['member'] as $member) {
-                        $newData[$key][] = $member['person']['@id'];
-                        $newData[$key][] = $member['person']['name'];
-                    }
-                }
-            }
-        }
-        if (isset($newData)) {
-            return json_encode($newData);
-        }
     }
 
     /**

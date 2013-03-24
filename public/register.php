@@ -1,19 +1,13 @@
 <?php
-require('../lib/FellowshipOne.php');
-require('../lib/FellowshipOne/Groups.php');
-$config = parse_ini_file('../lib/config.ini');
-
+require_once('../lib/config.php');
 //instantiate the f1 class
-$groupModel = new FellowshipOne_Groups($config);
-if (!$config) {
-    die("Wrong configuration file or settings");
-}
-$f1 = new FellowshipOne($config);
-if (($r = $f1->login()) === false) {
-    die("Failed to login");
-}
-$groupData = $f1->fetchGetJson($groupModel->getListUrl())
+$groupModel = new FellowshipOne_Groups($f1);
+$leadersData = $groupModel->getMembers($config['new_christians_leader_group_id']);
 ?>
+<?php if (isset($_POST['formSubmitted'])): ?>
+    <?php include_once 'create.php'; ?>
+<?php endif; ?>
+
 <html>
     <head>
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -33,7 +27,11 @@ $groupData = $f1->fetchGetJson($groupModel->getListUrl())
             <div class="main">
                 <h2>Registration</h2>
                 <div class="custom-form">
-                    <form id="addPerson" name="addPerson" method="post" enctype="multipart/form-data" action="create.php">
+                    <div> 
+                        <p id="successMessage"><?php echo $successMessage ?></p>
+                        <p id="ErrorMessage"><?php echo $errorMessage ?></p> 
+                    </div>
+                    <form id="addPerson" name="addPerson" method="post" enctype="multipart/form-data">
                         <div id="personInfo1" class="personInfo">
                             <div class="rowElem">
                                 <label for="firstName">*First Name:</label>
@@ -50,10 +48,12 @@ $groupData = $f1->fetchGetJson($groupModel->getListUrl())
                                     <option value="Head" id="1" selected="selected">Head</option>
                                     <option value="Spouse">Spouse</option>
                                     <option value="Child">Child</option>
+                                    <option value="Visitor">Visitor</option>
+                                    <option value="Other">Other (extended family)</option>
                                 </select>
                             </div>
                             <div class="rowElem">
-                                <label for="gender">Last Name:</label>
+                                <label for="gender">Gender:</label>
                                 <select class="validate-select" name="gender" id="gender">
                                     <option></option>
                                     <option value="Male">Male</option>
@@ -108,13 +108,13 @@ $groupData = $f1->fetchGetJson($groupModel->getListUrl())
                                 <input class="validate-email" type="text" name="email" id="email" />
                             </div>
                             <div class="rowElem">
-                                <label for="groups">Group:</label>
-                                <?php if ($groupData): ?>
-                                    <select class="validate-select" name="groups" id="groups">
-                                        <option>Group</option>
+                                <label for="registeredBy">Registered by:</label>
+                                <?php if ($leadersData): ?>
+                                    <select class="validate-select" name="registeredBy" id="registeredBy">
+                                        <option></option>
                                         <?php
-                                        foreach ($groupData['groupTypes']['groupType'] as $group) {
-                                            echo "<option value='{$group['@id']}'>{$group['name']}</option>";
+                                        foreach ($leadersData as $id => $name) {
+                                            echo "<option value='{$id}'>{$name}</option>";
                                         }
                                         ?>
                                     </select>
@@ -125,6 +125,7 @@ $groupData = $f1->fetchGetJson($groupModel->getListUrl())
                             <label style="width: 255px;"><button   class="button white" type="submit">Back</button></label>
                             <button  class="button white" type="submit">Submit</button>
                         </div>
+                        <input type="hidden" name="formSubmitted" value="1"/>
                     </form> 
                 </div>
             </div>
